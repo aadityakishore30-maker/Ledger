@@ -436,6 +436,16 @@ export default function Dashboard({ session }) {
   const sortedSavings = [...savingsEntries].sort((a, b) => b.date.localeCompare(a.date))
   // Savings entries are additive: every entry represents money that is part of savings.
   const currentSavings = savingsEntries.reduce((sum, entry) => sum + Number(entry.amount), 0)
+
+  // If this month's income is not enough to cover expenses already paid plus
+  // current/future scheduled expenses, the shortfall comes out of savings.
+  // Savings remains separate from income/expenses; this only shows how much
+  // of the saved money is still available after covering that shortfall.
+  const incomeCoverageShortfall = Math.max(0, monthOut + upcomingThisMonthSum - monthIn)
+  const availableSavings = Math.max(0, currentSavings - incomeCoverageShortfall)
+
+  // The overall balance is still the bank balance plus the savings pool.
+  // The bank balance already reflects actual expenses and held-back recurring bills.
   const totalBalance = trueBalance + currentSavings
   const netWorth = totalBalance + investmentsTotal + efBalance
   const sortedInvestments = [...investments].sort((a, b) => b.date.localeCompare(a.date))
@@ -1042,9 +1052,13 @@ export default function Dashboard({ session }) {
           <div className="tab-panel">
             <div className="section" style={{ marginTop: 20 }}>
               <div className="card balance-card">
-                <div className="lbl">Current savings</div>
-                <div className="amt">{fmt(currentSavings)}</div>
-                <p className="balance-note">Total of all your savings entries. This money is already in your account, so it does not count as income, an expense, or an investment.</p>
+                <div className="lbl">Available savings</div>
+                <div className="amt">{fmt(availableSavings)}</div>
+                {incomeCoverageShortfall > 0 ? (
+                  <p className="balance-note">{fmt(incomeCoverageShortfall)} is being covered from savings because current income does not cover your current and scheduled expenses.</p>
+                ) : (
+                  <p className="balance-note">Your savings are untouched because current income covers your current and scheduled expenses.</p>
+                )}
               </div>
             </div>
 
