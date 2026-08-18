@@ -433,10 +433,12 @@ export default function Dashboard({ session }) {
   const invContrib = investments.filter(i => i.type === 'contribution').reduce((s, x) => s + Number(x.amount), 0)
   const invWithdraw = investments.filter(i => i.type === 'withdrawal').reduce((s, x) => s + Number(x.amount), 0)
   const investmentsTotal = invContrib - invWithdraw
-  const netWorth = trueBalance + investmentsTotal + efBalance
-  const sortedInvestments = [...investments].sort((a, b) => b.date.localeCompare(a.date))
   const sortedSavings = [...savingsEntries].sort((a, b) => b.date.localeCompare(a.date))
-  const currentSavings = sortedSavings.length > 0 ? Number(sortedSavings[0].amount) : 0
+  // Savings entries are additive: every entry represents money that is part of savings.
+  const currentSavings = savingsEntries.reduce((sum, entry) => sum + Number(entry.amount), 0)
+  const totalBalance = trueBalance + currentSavings
+  const netWorth = totalBalance + investmentsTotal + efBalance
+  const sortedInvestments = [...investments].sort((a, b) => b.date.localeCompare(a.date))
   const invByCategory = {}
   investments.forEach(i => {
     const sign = i.type === 'contribution' ? 1 : -1
@@ -529,8 +531,8 @@ export default function Dashboard({ session }) {
           <div className="tab-panel">
             <div className="hero">
               <div className="card balance-card">
-                <div className="lbl">Available balance</div>
-                <div className="amt"><span className="rs">₹</span>{Math.round(trueBalance).toLocaleString('en-IN')}</div>
+                <div className="lbl">Total balance</div>
+                <div className="amt"><span className="rs">₹</span>{Math.round(totalBalance).toLocaleString('en-IN')}</div>
                 <div className="balance-row">
                   <div className="mini"><div className="k">This month in</div><div className="v in">{fmt(monthIn)}</div></div>
                   <div className="mini"><div className="k">This month out</div><div className="v out">{fmt(monthOut)}</div></div>
@@ -567,7 +569,7 @@ export default function Dashboard({ session }) {
                   <div className="lbl">Net worth</div>
                   <div className="amt">{fmt(netWorth)}</div>
                   <div className="networth-grid" style={{ marginTop: 14, gridTemplateColumns: 'repeat(3,1fr)' }}>
-                    <div className="networth-item"><div className="k">Bank</div><div className="v">{fmt(trueBalance)}</div></div>
+                    <div className="networth-item"><div className="k">Bank</div><div className="v">{fmt(totalBalance)}</div></div>
                     <div className="networth-item"><div className="k">Investments</div><div className="v">{fmt(investmentsTotal)}</div></div>
                     <div className="networth-item"><div className="k">Emergency</div><div className="v">{fmt(efBalance)}</div></div>
                   </div>
@@ -958,7 +960,7 @@ export default function Dashboard({ session }) {
                 <div className="lbl">Net worth</div>
                 <div className="amt">{fmt(netWorth)}</div>
                 <div className="networth-grid" style={{ marginTop: 14, gridTemplateColumns: 'repeat(3,1fr)' }}>
-                  <div className="networth-item"><div className="k">Bank</div><div className="v">{fmt(trueBalance)}</div></div>
+                  <div className="networth-item"><div className="k">Bank</div><div className="v">{fmt(totalBalance)}</div></div>
                   <div className="networth-item"><div className="k">Investments</div><div className="v">{fmt(investmentsTotal)}</div></div>
                   <div className="networth-item"><div className="k">Emergency fund</div><div className="v">{fmt(efBalance)}</div></div>
                 </div>
@@ -1042,14 +1044,14 @@ export default function Dashboard({ session }) {
               <div className="card balance-card">
                 <div className="lbl">Current savings</div>
                 <div className="amt">{fmt(currentSavings)}</div>
-                <p className="balance-note">This is money you already have in your account. It is tracked separately and does not count as income, an expense, or an investment.</p>
+                <p className="balance-note">Total of all your savings entries. This money is already in your account, so it does not count as income, an expense, or an investment.</p>
               </div>
             </div>
 
             <div className="section">
               <div className="grid-2">
                 <div className="card form-card">
-                  <h3>Update savings</h3>
+                  <h3>Add savings</h3>
                   <form onSubmit={addSavings}>
                     <label>Current amount</label>
                     <input type="number" min="0" placeholder="e.g. 50000" value={savingsAmount} onChange={e => setSavingsAmount(e.target.value)} required />
@@ -1057,8 +1059,8 @@ export default function Dashboard({ session }) {
                     <input type="date" value={savingsDate} onChange={e => setSavingsDate(e.target.value)} required />
                     <label>Note (optional)</label>
                     <input type="text" placeholder="e.g. Savings as of August" value={savingsNote} onChange={e => setSavingsNote(e.target.value)} />
-                    <button type="submit" className="submit-btn">Save current amount</button>
-                    <p className="form-note">Each update records a snapshot. The latest dated entry is shown as your current savings.</p>
+                    <button type="submit" className="submit-btn">Add savings</button>
+                    <p className="form-note">Each entry is added to your total savings. Use a new entry when you add more money to savings.</p>
                   </form>
                 </div>
 
@@ -1070,7 +1072,7 @@ export default function Dashboard({ session }) {
                         <div className="icon-dot in"><PiggyBank size={16} strokeWidth={2} /></div>
                         <div>
                           <div className="desc">{s.note || 'Savings balance'}</div>
-                          <div className="meta">{s.date}{s.id === sortedSavings[0].id ? ' · Current' : ''}</div>
+                          <div className="meta">{s.date}</div>
                         </div>
                       </div>
                       <div className="row-actions">
