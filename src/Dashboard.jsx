@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Chart } from 'chart.js/auto'
 import {
   LayoutGrid, Wallet, Receipt, Repeat, History, Shield, Target, TrendingUp, LogOut, X, Pause, Play, ChevronDown,
-  Home, ShoppingCart, UtensilsCrossed, Dumbbell, Plane, Tv, Zap, ShoppingBag, HeartPulse, Sparkles
+  Home, ShoppingCart, UtensilsCrossed, Dumbbell, Plane, Tv, Zap, ShoppingBag, HeartPulse, Sparkles, PiggyBank
 } from 'lucide-react'
 import { supabase } from './supabaseClient'
 import './Dashboard.css'
@@ -20,7 +20,7 @@ const CATEGORY_COLORS = {
   Travel: '#7A93B8', Subscriptions: '#A78BC4', Utilities: '#D4A5A0', Shopping: '#E0B85C',
   Health: '#6FAAB0', Other: '#B7B3A9'
 }
-const TAB_ICONS = { overview: LayoutGrid, salary: Wallet, expenses: Receipt, recurring: Repeat, budgets: Target, emergency: Shield, investments: TrendingUp, history: History }
+const TAB_ICONS = { overview: LayoutGrid, salary: Wallet, expenses: Receipt, recurring: Repeat, budgets: Target, emergency: Shield, investments: TrendingUp, savings: PiggyBank, history: History }
 
 function CategoryIcon({ category, size = 16 }) {
   const Icon = CATEGORY_ICONS[category] || Sparkles
@@ -51,6 +51,7 @@ export default function Dashboard({ session }) {
   const [efTargetMonths, setEfTargetMonths] = useState(6)
   const [budgets, setBudgets] = useState([])
   const [investments, setInvestments] = useState([])
+  const [savingsEntries, setSavingsEntries] = useState([])
   const [expMonthFilter, setExpMonthFilter] = useState(new Date().toISOString().slice(0, 7))
   const [expandedMonth, setExpandedMonth] = useState(null)
 
@@ -89,6 +90,10 @@ export default function Dashboard({ session }) {
   const [invType, setInvType] = useState('contribution')
   const [invNote, setInvNote] = useState('')
 
+  const [savingsAmount, setSavingsAmount] = useState('')
+  const [savingsDate, setSavingsDate] = useState(new Date().toISOString().slice(0, 10))
+  const [savingsNote, setSavingsNote] = useState('')
+
   const chartRef = useRef(null)
   const chartInstance = useRef(null)
   const donutRef = useRef(null)
@@ -112,12 +117,14 @@ export default function Dashboard({ session }) {
     const { data: ef } = await supabase.from('emergency_fund_entries').select('*').eq('user_id', userId)
     const { data: bud } = await supabase.from('category_budgets').select('*').eq('user_id', userId)
     const { data: inv } = await supabase.from('investment_entries').select('*').eq('user_id', userId)
+    const { data: savings } = await supabase.from('savings_entries').select('*').eq('user_id', userId)
     setSalaries(sal || [])
     setExpenses(exp || [])
     setRecurring(rec || [])
     setEfEntries(ef || [])
     setBudgets(bud || [])
     setInvestments(inv || [])
+    setSavingsEntries(savings || [])
     await loadSettings()
     await autoPost(rec || [], exp || [])
   }
@@ -310,6 +317,21 @@ export default function Dashboard({ session }) {
   async function deleteBudget(id) { await supabase.from('category_budgets').delete().eq('id', id); loadAll() }
   async function deleteInvestment(id) { await supabase.from('investment_entries').delete().eq('id', id); loadAll() }
 
+  async function addSavings(e) {
+    e.preventDefault()
+    if (!savingsAmount) return
+    await supabase.from('savings_entries').insert({
+      user_id: userId, amount: Number(savingsAmount), date: savingsDate, note: savingsNote
+    })
+    setSavingsAmount(''); setSavingsNote('')
+    loadAll()
+  }
+
+  async function deleteSavings(id) {
+    await supabase.from('savings_entries').delete().eq('id', id)
+    loadAll()
+  }
+
   const today = todayISO()
   const now = new Date()
   const totalIn = salaries.reduce((s, x) => s + Number(x.amount), 0)
@@ -413,6 +435,8 @@ export default function Dashboard({ session }) {
   const investmentsTotal = invContrib - invWithdraw
   const netWorth = trueBalance + investmentsTotal + efBalance
   const sortedInvestments = [...investments].sort((a, b) => b.date.localeCompare(a.date))
+  const sortedSavings = [...savingsEntries].sort((a, b) => b.date.localeCompare(a.date))
+  const currentSavings = sortedSavings.length > 0 ? Number(sortedSavings[0].amount) : 0
   const invByCategory = {}
   investments.forEach(i => {
     const sign = i.type === 'contribution' ? 1 : -1
@@ -427,6 +451,7 @@ export default function Dashboard({ session }) {
     { id: 'budgets', label: 'Budgets' },
     { id: 'emergency', label: 'Emergency Fund' },
     { id: 'investments', label: 'Investments' },
+    { id: 'savings', label: 'Savings' },
     { id: 'history', label: 'History' }
   ]
 
@@ -1002,6 +1027,55 @@ export default function Dashboard({ session }) {
                       <div className="row-actions">
                         <div className={`amt ${i.type === 'contribution' ? 'in' : 'out'}`}>{i.type === 'contribution' ? '+' : '−'} {fmt(i.amount)}</div>
                         <button className="del-btn" onClick={() => deleteInvestment(i.id)}><X size={14} strokeWidth={2} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'savings' && (
+          <div className="tab-panel">
+            <div className="section" style={{ marginTop: 20 }}>
+              <div className="card balance-card">
+                <div className="lbl">Current savings</div>
+                <div className="amt">{fmt(currentSavings)}</div>
+                <p className="balance-note">This is money you already have in your account. It is tracked separately and does not count as income, an expense, or an investment.</p>
+              </div>
+            </div>
+
+            <div className="section">
+              <div className="grid-2">
+                <div className="card form-card">
+                  <h3>Update savings</h3>
+                  <form onSubmit={addSavings}>
+                    <label>Current amount</label>
+                    <input type="number" min="0" placeholder="e.g. 50000" value={savingsAmount} onChange={e => setSavingsAmount(e.target.value)} required />
+                    <label>Date</label>
+                    <input type="date" value={savingsDate} onChange={e => setSavingsDate(e.target.value)} required />
+                    <label>Note (optional)</label>
+                    <input type="text" placeholder="e.g. Savings as of August" value={savingsNote} onChange={e => setSavingsNote(e.target.value)} />
+                    <button type="submit" className="submit-btn">Save current amount</button>
+                    <p className="form-note">Each update records a snapshot. The latest dated entry is shown as your current savings.</p>
+                  </form>
+                </div>
+
+                <div className="card list-card" style={{ alignSelf: 'start' }}>
+                  {sortedSavings.length === 0 && <div className="empty">No savings recorded yet. Add your current savings amount to get started.</div>}
+                  {sortedSavings.map(s => (
+                    <div className="list-row" key={s.id}>
+                      <div className="left">
+                        <div className="icon-dot in"><PiggyBank size={16} strokeWidth={2} /></div>
+                        <div>
+                          <div className="desc">{s.note || 'Savings balance'}</div>
+                          <div className="meta">{s.date}{s.id === sortedSavings[0].id ? ' · Current' : ''}</div>
+                        </div>
+                      </div>
+                      <div className="row-actions">
+                        <div className="amt in">{fmt(s.amount)}</div>
+                        <button className="del-btn" onClick={() => deleteSavings(s.id)}><X size={14} strokeWidth={2} /></button>
                       </div>
                     </div>
                   ))}
