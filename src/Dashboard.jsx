@@ -437,11 +437,43 @@ export default function Dashboard({ session }) {
   // Savings entries are additive: every entry represents money that is part of savings.
   const currentSavings = savingsEntries.reduce((sum, entry) => sum + Number(entry.amount), 0)
 
-  // If this month's income is not enough to cover expenses already paid plus
-  // current/future scheduled expenses, the shortfall comes out of savings.
-  // Savings remains separate from income/expenses; this only shows how much
-  // of the saved money is still available after covering that shortfall.
-  const incomeCoverageShortfall = Math.max(0, monthOut + upcomingThisMonthSum - monthIn)
+  // Savings is only used when an expense is actually due.
+  // Future recurring expenses are NOT deducted early. On/after their due
+  // date, the expense is compared with that month's income and only the
+  // uncovered amount comes from savings.
+  //
+  // Current month:
+  //   all expenses already due/recorded + recurring expenses due this month
+  //   are compared against this month's income.
+  //
+  // Future months:
+  //   only scheduled one-time expenses and recurring occurrences whose
+  //   due date has arrived are considered. Since this dashboard is evaluated
+  //   today, future occurrences remain untouched until their due date.
+  const dueRecurringExpenses = upcomingRecurring.filter(e => e.date <= today)
+
+  const dueExpenses = [
+    ...expenses.filter(e => e.date <= today),
+    ...dueRecurringExpenses
+  ]
+
+  const dueMonths = new Set(dueExpenses.map(e => monthKey(e.date)))
+  dueMonths.add(curMonth)
+
+  let incomeCoverageShortfall = 0
+
+  for (const mk of dueMonths) {
+    const monthIncome = salaries
+      .filter(s => s.for_month === mk)
+      .reduce((sum, s) => sum + Number(s.amount), 0)
+
+    const monthExpenses = dueExpenses
+      .filter(e => monthKey(e.date) === mk)
+      .reduce((sum, e) => sum + Number(e.amount), 0)
+
+    incomeCoverageShortfall += Math.max(0, monthExpenses - monthIncome)
+  }
+
   const availableSavings = Math.max(0, currentSavings - incomeCoverageShortfall)
 
   // The overall balance is still the bank balance plus the savings pool.
@@ -1055,9 +1087,9 @@ export default function Dashboard({ session }) {
                 <div className="lbl">Available savings</div>
                 <div className="amt">{fmt(availableSavings)}</div>
                 {incomeCoverageShortfall > 0 ? (
-                  <p className="balance-note">{fmt(incomeCoverageShortfall)} is being covered from savings because current income does not cover your current and scheduled expenses.</p>
+                  <p className="balance-note">{fmt(incomeCoverageShortfall)} is being covered from savings because the expenses that are due are not fully covered by recorded income.</p>
                 ) : (
-                  <p className="balance-note">Your savings are untouched because current income covers your current and scheduled expenses.</p>
+                  <p className="balance-note">Future recurring expenses stay untouched until their due date. Once an expense is due, only the amount not covered by that month's income is taken from savings.</p>
                 )}
               </div>
             </div>
