@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { Chart } from 'chart.js/auto'
 import {
   LayoutGrid, Wallet, Receipt, Repeat, History, Shield, Target, TrendingUp, LogOut, X, Pause, Play, ChevronDown,
-  Home, ShoppingCart, UtensilsCrossed, Dumbbell, Plane, Tv, Zap, ShoppingBag, HeartPulse, Sparkles, PiggyBank, Menu
+  Home, ShoppingCart, UtensilsCrossed, Dumbbell, Plane, Tv, Zap, ShoppingBag, HeartPulse, Sparkles, PiggyBank, Menu,
+  HandCoins, Check
 } from 'lucide-react'
 import { supabase } from './supabaseClient'
 import './Dashboard.css'
@@ -20,7 +21,7 @@ const CATEGORY_COLORS = {
   Travel: '#7A93B8', Subscriptions: '#A78BC4', Utilities: '#D4A5A0', Shopping: '#E0B85C',
   Health: '#6FAAB0', Other: '#B7B3A9'
 }
-const TAB_ICONS = { overview: LayoutGrid, salary: Wallet, expenses: Receipt, recurring: Repeat, budgets: Target, emergency: Shield, investments: TrendingUp, savings: PiggyBank, history: History }
+const TAB_ICONS = { overview: LayoutGrid, salary: Wallet, expenses: Receipt, recurring: Repeat, budgets: Target, emergency: Shield, investments: TrendingUp, savings: PiggyBank, lend: HandCoins, history: History }
 
 function CategoryIcon({ category, size = 16 }) {
   const Icon = CATEGORY_ICONS[category] || Sparkles
@@ -53,6 +54,7 @@ export default function Dashboard({ session }) {
   const [budgets, setBudgets] = useState([])
   const [investments, setInvestments] = useState([])
   const [savingsEntries, setSavingsEntries] = useState([])
+  const [lendEntries, setLendEntries] = useState([])
   const [expMonthFilter, setExpMonthFilter] = useState(new Date().toISOString().slice(0, 7))
   const [expandedMonth, setExpandedMonth] = useState(null)
 
@@ -95,6 +97,11 @@ export default function Dashboard({ session }) {
   const [savingsDate, setSavingsDate] = useState(new Date().toISOString().slice(0, 10))
   const [savingsNote, setSavingsNote] = useState('')
 
+  const [lendBorrower, setLendBorrower] = useState('')
+  const [lendAmount, setLendAmount] = useState('')
+  const [lendDate, setLendDate] = useState(new Date().toISOString().slice(0, 10))
+  const [lendNote, setLendNote] = useState('')
+
   const chartRef = useRef(null)
   const chartInstance = useRef(null)
   const donutRef = useRef(null)
@@ -130,6 +137,7 @@ export default function Dashboard({ session }) {
     const { data: bud } = await supabase.from('category_budgets').select('*').eq('user_id', userId)
     const { data: inv } = await supabase.from('investment_entries').select('*').eq('user_id', userId)
     const { data: savings } = await supabase.from('savings_entries').select('*').eq('user_id', userId)
+    const { data: lend } = await supabase.from('lending_entries').select('*').eq('user_id', userId)
     setSalaries(sal || [])
     setExpenses(exp || [])
     setRecurring(rec || [])
@@ -137,6 +145,7 @@ export default function Dashboard({ session }) {
     setBudgets(bud || [])
     setInvestments(inv || [])
     setSavingsEntries(savings || [])
+    setLendEntries(lend || [])
     await loadSettings()
     await autoPost(rec || [], exp || [])
   }
@@ -344,6 +353,27 @@ export default function Dashboard({ session }) {
     loadAll()
   }
 
+  async function addLend(e) {
+    e.preventDefault()
+    if (!lendBorrower || !lendAmount) return
+    await supabase.from('lending_entries').insert({
+      user_id: userId, borrower_name: lendBorrower, amount: Number(lendAmount),
+      date: lendDate, note: lendNote, status: 'outstanding'
+    })
+    setLendBorrower(''); setLendAmount(''); setLendNote('')
+    loadAll()
+  }
+
+  async function markLendReceived(id) {
+    await supabase.from('lending_entries').update({ status: 'received', received_date: todayISO() }).eq('id', id)
+    loadAll()
+  }
+
+  async function deleteLend(id) {
+    await supabase.from('lending_entries').delete().eq('id', id)
+    loadAll()
+  }
+
   const today = todayISO()
   const now = new Date()
   const totalIn = salaries.reduce((s, x) => s + Number(x.amount), 0)
@@ -471,8 +501,14 @@ export default function Dashboard({ session }) {
 
   const availableSavings = Math.max(0, currentSavings - incomeCoverageShortfall)
 
-  const totalBalance = trueBalance + currentSavings
-  const netWorth = totalBalance + investmentsTotal + efBalance
+  const lentOutstanding = lendEntries.filter(l => l.status === 'outstanding').reduce((s, x) => s + Number(x.amount), 0)
+  const sortedLend = [...lendEntries].sort((a, b) => {
+    if (a.status !== b.status) return a.status === 'outstanding' ? -1 : 1
+    return b.date.localeCompare(a.date)
+  })
+
+  const totalBalance = trueBalance + currentSavings - lentOutstanding
+  const netWorth = totalBalance + investmentsTotal + efBalance + lentOutstanding
   const sortedInvestments = [...investments].sort((a, b) => b.date.localeCompare(a.date))
   const invByCategory = {}
   investments.forEach(i => {
@@ -489,6 +525,7 @@ export default function Dashboard({ session }) {
     { id: 'emergency', label: 'Emergency Fund' },
     { id: 'investments', label: 'Investments' },
     { id: 'savings', label: 'Savings' },
+    { id: 'lend', label: 'Lend' },
     { id: 'history', label: 'History' }
   ]
 
@@ -621,6 +658,9 @@ export default function Dashboard({ session }) {
                 </div>
                 {upcomingRecurringSum > 0 && (
                   <p className="balance-note">Already holds back {fmt(upcomingRecurringSum)} for recurring bills that haven't been charged yet, so this number is what's genuinely free to spend.</p>
+                )}
+                {lentOutstanding > 0 && (
+                  <p className="balance-note lent-note">{fmt(lentOutstanding)} lent out, to be received back</p>
                 )}
 
                 <div className="ef-widget">
@@ -1163,6 +1203,69 @@ export default function Dashboard({ session }) {
                       <div className="row-actions">
                         <div className="amt in">{fmt(s.amount)}</div>
                         <button className="del-btn" onClick={() => deleteSavings(s.id)}><X size={14} strokeWidth={2} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'lend' && (
+          <div className="tab-panel">
+            <div className="section" style={{ marginTop: 20 }}>
+              <div className="card balance-card">
+                <div className="lbl">Currently lent out</div>
+                <div className="amt">{fmt(lentOutstanding)}</div>
+                <p className="balance-note" style={{ marginTop: 10 }}>
+                  This amount is already subtracted from your Total balance. It's still counted in your Net worth as money owed to you. Mark an entry as received once you're paid back, and it'll flow back into your balance automatically.
+                </p>
+              </div>
+            </div>
+
+            <div className="section">
+              <div className="grid-2">
+                <div className="card form-card">
+                  <h3>Lend money</h3>
+                  <form onSubmit={addLend}>
+                    <label>Lent to</label>
+                    <input type="text" placeholder="e.g. Rohan" value={lendBorrower} onChange={e => setLendBorrower(e.target.value)} required />
+                    <label>Amount</label>
+                    <input type="number" min="1" placeholder="e.g. 5000" value={lendAmount} onChange={e => setLendAmount(e.target.value)} required />
+                    <label>Date</label>
+                    <input type="date" value={lendDate} onChange={e => setLendDate(e.target.value)} required />
+                    <label>Note (optional)</label>
+                    <input type="text" placeholder="e.g. For rent, said he'd return by month end" value={lendNote} onChange={e => setLendNote(e.target.value)} />
+                    <button type="submit" className="submit-btn">Add</button>
+                    <p className="form-note">This is immediately subtracted from your Total balance, since it's no longer sitting in your account.</p>
+                  </form>
+                </div>
+                <div className="card list-card" style={{ alignSelf: 'start' }}>
+                  {sortedLend.length === 0 && <div className="empty">No lending recorded yet.</div>}
+                  {sortedLend.map(l => (
+                    <div className="list-row" key={l.id}>
+                      <div className="left">
+                        <div className={`icon-dot ${l.status === 'received' ? 'in' : 'out'}`}><HandCoins size={16} strokeWidth={2} /></div>
+                        <div>
+                          <div className="desc">
+                            {l.borrower_name}
+                            {l.status === 'received' && <span className="badge auto">received</span>}
+                          </div>
+                          <div className="meta">
+                            {l.note ? `${l.note} · ` : ''}
+                            {l.status === 'received' ? `lent ${l.date} · received ${l.received_date}` : `lent ${l.date}`}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="row-actions">
+                        <div className={`amt ${l.status === 'received' ? 'in' : 'out'}`}>{fmt(l.amount)}</div>
+                        {l.status === 'outstanding' && (
+                          <button className="del-btn" onClick={() => markLendReceived(l.id)} title="Mark as received">
+                            <Check size={14} strokeWidth={2} />
+                          </button>
+                        )}
+                        <button className="del-btn" onClick={() => deleteLend(l.id)}><X size={14} strokeWidth={2} /></button>
                       </div>
                     </div>
                   ))}
