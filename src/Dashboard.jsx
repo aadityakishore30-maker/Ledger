@@ -689,12 +689,13 @@ export default function Dashboard({ session }) {
                 <div className="card balance-card">
                   <div className="lbl">Net worth</div>
                   <div className="amt">{fmt(netWorth)}</div>
-                  <div className="networth-grid" style={{ marginTop: 14, gridTemplateColumns: 'repeat(3,1fr)' }}>
+                  <div className="networth-grid" style={{ marginTop: 14, gridTemplateColumns: 'repeat(4,1fr)' }}>
                     <div className="networth-item"><div className="k">Bank</div><div className="v">{fmt(totalBalance)}</div></div>
+                    <div className="networth-item"><div className="k">Lent out</div><div className="v">{fmt(lentOutstanding)}</div></div>
                     <div className="networth-item"><div className="k">Investments</div><div className="v">{fmt(investmentsTotal)}</div></div>
                     <div className="networth-item"><div className="k">Emergency</div><div className="v">{fmt(efBalance)}</div></div>
                   </div>
-                  <p className="balance-note">As you spend, this drops right along with your bank balance, it's not a separate pot.</p>
+                  <p className="balance-note">Net worth includes money you have in the bank plus money lent out that is still owed to you, investments, and your emergency fund.</p>
                 </div>
               </div>
             </div>
