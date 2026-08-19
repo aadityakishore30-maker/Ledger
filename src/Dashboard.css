@@ -32,6 +32,7 @@ input, select{ font-family:'Inter',sans-serif; }
 
 .app-shell{ display:flex; min-height:100vh; width:100%; background:var(--bg); }
 
+/* ---------- Sidebar (desktop) — unchanged ---------- */
 .sidebar{
   width:var(--sidebar-w); flex-shrink:0; background:var(--surface);
   border-right:1px solid var(--border); display:flex; flex-direction:column;
@@ -71,6 +72,7 @@ input, select{ font-family:'Inter',sans-serif; }
 }
 .sidebar-account .logout-btn:hover{ color:var(--warn); border-color:var(--warn-soft); background:var(--warn-soft); }
 
+/* ---------- Mobile top bar (hidden on desktop) ---------- */
 .mobile-topbar{
   display:none; align-items:center; justify-content:space-between; padding:14px 16px;
   background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10;
@@ -103,15 +105,24 @@ input, select{ font-family:'Inter',sans-serif; }
   background:var(--surface); z-index:50;
   transform:translateX(-100%); transition:transform .25s ease;
   box-shadow:8px 0 30px rgba(0,0,0,0.15);
+  overflow:hidden; /* the inner nav scrolls, the drawer shell itself doesn't */
 }
 .mobile-drawer.open{ transform:translateX(0); }
 
 .drawer-header{
   display:flex; align-items:center; justify-content:space-between;
-  padding:18px 16px; border-bottom:1px solid var(--border);
+  padding:18px 16px; border-bottom:1px solid var(--border); flex-shrink:0;
 }
 .drawer-close{ border:none; background:none; color:var(--muted); padding:6px; border-radius:8px; display:flex; }
 .drawer-close:hover{ background:var(--surface-alt); color:var(--ink); }
+
+/* Let the nav list scroll independently if there are more tabs than fit the screen height */
+.mobile-drawer .sidebar-nav{
+  overflow-y:auto;
+  min-height:0;
+  -webkit-overflow-scrolling:touch;
+}
+.mobile-drawer .sidebar-account{ flex-shrink:0; }
 
 .main-content{ flex:1; min-width:0; padding-bottom:24px; width:100%; }
 
@@ -213,6 +224,11 @@ footer{ width:100%; margin-top:44px; padding:20px var(--pad) 50px; border-top:1p
   .mobile-drawer-overlay{ display:block; }
   .hero{ grid-template-columns:1fr; }
   .grid-2{ grid-template-columns:1fr; }
+}
+
+/* Extra headroom check for short mobile viewports: drawer content scrolls instead of clipping */
+@media (max-width:820px) and (max-height:640px){
+  .mobile-drawer .sidebar-nav{ padding-top:10px; padding-bottom:10px; }
 }
 
 /* ---------- History tab ---------- */

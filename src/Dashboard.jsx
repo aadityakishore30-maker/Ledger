@@ -103,6 +103,12 @@ export default function Dashboard({ session }) {
   useEffect(() => { loadAll() }, [])
   useEffect(() => { if (tab === 'overview') { drawChart(); drawDonut() } }, [tab, salaries, expenses])
 
+  // Lock background scroll while the mobile drawer is open
+  useEffect(() => {
+    document.body.style.overflow = drawerOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [drawerOpen])
+
   const todayISO = () => new Date().toISOString().slice(0, 10)
   const fmt = n => (n < 0 ? '−₹' + Math.abs(Math.round(n)).toLocaleString('en-IN') : '₹' + Math.round(n).toLocaleString('en-IN'))
   const monthKey = d => d.slice(0, 7)
