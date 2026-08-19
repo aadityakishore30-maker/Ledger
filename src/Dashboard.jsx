@@ -3,7 +3,7 @@ import { Chart } from 'chart.js/auto'
 import {
   LayoutGrid, Wallet, Receipt, Repeat, History, Shield, Target, TrendingUp, LogOut, X, Pause, Play, ChevronDown,
   Home, ShoppingCart, UtensilsCrossed, Dumbbell, Plane, Tv, Zap, ShoppingBag, HeartPulse, Sparkles, PiggyBank, Menu,
-  HandCoins, Check
+  HandCoins, Check, Info
 } from 'lucide-react'
 import { supabase } from './supabaseClient'
 import './Dashboard.css'
@@ -58,10 +58,51 @@ function SourcePicker({ options, value, onChange }) {
   )
 }
 
+function InfoCta({ onClick }) {
+  return (
+    <button type="button" className="info-cta" onClick={onClick}>
+      <Info size={12} strokeWidth={2} /> How's this calculated?
+    </button>
+  )
+}
+
+function BreakdownModal({ title, rows, finalLabel, finalAmount, fmt, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>{title}</h3>
+          <button className="modal-close" onClick={onClose} aria-label="Close"><X size={18} strokeWidth={2} /></button>
+        </div>
+        <div className="modal-body">
+          {rows.map((r, i) => (
+            r.type === 'subtotal' ? (
+              <div className="modal-row subtotal" key={i}>
+                <span>{r.label}</span>
+                <span>{fmt(r.amount)}</span>
+              </div>
+            ) : (
+              <div className="modal-row" key={i}>
+                <span>{r.label}</span>
+                <span className={r.amount < 0 ? 'amt-neg' : 'amt-pos'}>{r.amount < 0 ? '− ' : '+ '}{fmt(Math.abs(r.amount))}</span>
+              </div>
+            )
+          ))}
+        </div>
+        <div className="modal-final">
+          <span>{finalLabel}</span>
+          <span>{fmt(finalAmount)}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard({ session }) {
   const userId = session.user.id
   const [tab, setTab] = useState('overview')
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [infoModal, setInfoModal] = useState(null)
   const [salaries, setSalaries] = useState([])
   const [expenses, setExpenses] = useState([])
   const [recurring, setRecurring] = useState([])
@@ -542,6 +583,32 @@ export default function Dashboard({ session }) {
     invByCategory[i.category] = (invByCategory[i.category] || 0) + sign * Number(i.amount)
   })
 
+  // ---------- "How's this calculated?" breakdowns ----------
+  const savingsNetOfIncome = currentSavings - savingsInFromIncome
+
+  const totalBalanceRows = [
+    { type: 'line', label: 'Income recorded (all time)', amount: totalIn },
+    { type: 'line', label: 'Expenses recorded (all time)', amount: -totalOut },
+    { type: 'subtotal', label: 'Balance from income & expenses', amount: balance },
+    ...(upcomingRecurringSum > 0 ? [{ type: 'line', label: 'Recurring bills due but not yet charged', amount: -upcomingRecurringSum }] : []),
+    { type: 'subtotal', label: 'Bank balance from cash flow', amount: trueBalance },
+    ...(savingsNetOfIncome !== 0 ? [{ type: 'line', label: 'Savings you can still draw on', amount: savingsNetOfIncome }] : []),
+    ...(lentOutstanding > 0 ? [{ type: 'line', label: 'Lent out, not yet received', amount: -lentOutstanding }] : []),
+    ...(efContribFromIncome > 0 ? [{ type: 'line', label: 'Moved to Emergency Fund', amount: -efContribFromIncome }] : [])
+  ]
+
+  const netWorthRows = [
+    { type: 'line', label: 'Total balance', amount: totalBalance },
+    { type: 'line', label: 'Investments', amount: investmentsTotal },
+    { type: 'line', label: 'Emergency fund', amount: efBalance },
+    ...(lentOutstanding > 0 ? [{ type: 'line', label: 'Lent out, still owed to you', amount: lentOutstanding }] : [])
+  ]
+
+  const savingsRows = [
+    { type: 'line', label: 'Current savings balance', amount: currentSavings },
+    ...(incomeCoverageShortfall > 0 ? [{ type: 'line', label: "Reserved to cover bills income doesn't fully cover", amount: -incomeCoverageShortfall }] : [])
+  ]
+
   const TABS = [
     { id: 'overview', label: 'Overview' },
     { id: 'salary', label: 'Income' },
@@ -668,6 +735,7 @@ export default function Dashboard({ session }) {
               <div className="card balance-card">
                 <div className="lbl">Total balance</div>
                 <div className="amt"><span className="rs">₹</span>{Math.round(totalBalance).toLocaleString('en-IN')}</div>
+                <InfoCta onClick={() => setInfoModal('totalBalance')} />
                 <div className="balance-row">
                   <div className="mini"><div className="k">This month in</div><div className="v in">{fmt(monthIn)}</div></div>
                   <div className="mini"><div className="k">This month out</div><div className="v out">{fmt(monthOut)}</div></div>
@@ -706,6 +774,7 @@ export default function Dashboard({ session }) {
                 <div className="card balance-card">
                   <div className="lbl">Net worth</div>
                   <div className="amt">{fmt(netWorth)}</div>
+                  <InfoCta onClick={() => setInfoModal('netWorth')} />
                   <div className="networth-grid">
                     <div className="networth-item"><div className="k">Bank</div><div className="v">{fmt(totalBalance)}</div></div>
                     <div className="networth-item"><div className="k">Lent out</div><div className="v">{fmt(lentOutstanding)}</div></div>
@@ -1115,6 +1184,7 @@ export default function Dashboard({ session }) {
               <div className="card balance-card">
                 <div className="lbl">Net worth</div>
                 <div className="amt">{fmt(netWorth)}</div>
+                <InfoCta onClick={() => setInfoModal('netWorth')} />
                 <div className="networth-grid">
                   <div className="networth-item"><div className="k">Bank</div><div className="v">{fmt(totalBalance)}</div></div>
                   <div className="networth-item"><div className="k">Investments</div><div className="v">{fmt(investmentsTotal)}</div></div>
@@ -1200,6 +1270,7 @@ export default function Dashboard({ session }) {
               <div className="card balance-card">
                 <div className="lbl">Available savings</div>
                 <div className="amt">{fmt(availableSavings)}</div>
+                <InfoCta onClick={() => setInfoModal('savings')} />
                 {incomeCoverageShortfall > 0 ? (
                   <p className="balance-note">{fmt(incomeCoverageShortfall)} is being covered from savings because the expenses that are due are not fully covered by recorded income.</p>
                 ) : (
@@ -1396,6 +1467,37 @@ export default function Dashboard({ session }) {
 
         <footer>Ledger — your data, saved to your account, visible only to you.</footer>
       </main>
+
+      {infoModal === 'totalBalance' && (
+        <BreakdownModal
+          title="Total balance"
+          rows={totalBalanceRows}
+          finalLabel="Total balance"
+          finalAmount={totalBalance}
+          fmt={fmt}
+          onClose={() => setInfoModal(null)}
+        />
+      )}
+      {infoModal === 'netWorth' && (
+        <BreakdownModal
+          title="Net worth"
+          rows={netWorthRows}
+          finalLabel="Net worth"
+          finalAmount={netWorth}
+          fmt={fmt}
+          onClose={() => setInfoModal(null)}
+        />
+      )}
+      {infoModal === 'savings' && (
+        <BreakdownModal
+          title="Available savings"
+          rows={savingsRows}
+          finalLabel="Available savings"
+          finalAmount={availableSavings}
+          fmt={fmt}
+          onClose={() => setInfoModal(null)}
+        />
+      )}
     </div>
   )
 }
