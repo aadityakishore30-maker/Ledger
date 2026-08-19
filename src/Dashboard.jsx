@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Chart } from 'chart.js/auto'
 import {
   LayoutGrid, Wallet, Receipt, Repeat, History, Shield, Target, TrendingUp, LogOut, X, Pause, Play, ChevronDown,
-  Home, ShoppingCart, UtensilsCrossed, Dumbbell, Plane, Tv, Zap, ShoppingBag, HeartPulse, Sparkles, PiggyBank
+  Home, ShoppingCart, UtensilsCrossed, Dumbbell, Plane, Tv, Zap, ShoppingBag, HeartPulse, Sparkles, PiggyBank, Menu
 } from 'lucide-react'
 import { supabase } from './supabaseClient'
 import './Dashboard.css'
@@ -44,6 +44,7 @@ function dayModeLabel(rule) {
 export default function Dashboard({ session }) {
   const userId = session.user.id
   const [tab, setTab] = useState('overview')
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [salaries, setSalaries] = useState([])
   const [expenses, setExpenses] = useState([])
   const [recurring, setRecurring] = useState([])
@@ -108,6 +109,11 @@ export default function Dashboard({ session }) {
   const monthLabel = mk => {
     const [y, m] = mk.split('-')
     return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  }
+
+  function goToTab(id) {
+    setTab(id)
+    setDrawerOpen(false)
   }
 
   async function loadAll() {
@@ -372,9 +378,6 @@ export default function Dashboard({ session }) {
   const upcomingThisMonth = upcoming.filter(x => monthKey(x.date) === curMonth)
   const upcomingThisMonthSum = upcomingThisMonth.reduce((s, x) => s + Number(x.amount), 0)
 
-  // Recurring bills that haven't auto-posted yet aren't in `expenses` at all, so unlike
-  // one-time scheduled expenses (already included in totalOut), they need to be held
-  // back from the balance separately to avoid overstating what's actually spendable.
   const upcomingRecurringSum = upcomingRecurring.reduce((s, x) => s + Number(x.amount), 0)
   const trueBalance = balance - upcomingRecurringSum
 
@@ -434,22 +437,8 @@ export default function Dashboard({ session }) {
   const invWithdraw = investments.filter(i => i.type === 'withdrawal').reduce((s, x) => s + Number(x.amount), 0)
   const investmentsTotal = invContrib - invWithdraw
   const sortedSavings = [...savingsEntries].sort((a, b) => b.date.localeCompare(a.date))
-  // Savings entries are additive: every entry represents money that is part of savings.
   const currentSavings = savingsEntries.reduce((sum, entry) => sum + Number(entry.amount), 0)
 
-  // Savings is only used when an expense is actually due.
-  // Future recurring expenses are NOT deducted early. On/after their due
-  // date, the expense is compared with that month's income and only the
-  // uncovered amount comes from savings.
-  //
-  // Current month:
-  //   all expenses already due/recorded + recurring expenses due this month
-  //   are compared against this month's income.
-  //
-  // Future months:
-  //   only scheduled one-time expenses and recurring occurrences whose
-  //   due date has arrived are considered. Since this dashboard is evaluated
-  //   today, future occurrences remain untouched until their due date.
   const dueRecurringExpenses = upcomingRecurring.filter(e => e.date <= today)
 
   const dueExpenses = [
@@ -476,8 +465,6 @@ export default function Dashboard({ session }) {
 
   const availableSavings = Math.max(0, currentSavings - incomeCoverageShortfall)
 
-  // The overall balance is still the bank balance plus the savings pool.
-  // The bank balance already reflects actual expenses and held-back recurring bills.
   const totalBalance = trueBalance + currentSavings
   const netWorth = totalBalance + investmentsTotal + efBalance
   const sortedInvestments = [...investments].sort((a, b) => b.date.localeCompare(a.date))
@@ -561,12 +548,58 @@ export default function Dashboard({ session }) {
       </aside>
 
       <header className="mobile-topbar">
-        <div className="brand">
-          <div className="logo">L</div>
-          <div className="name">Ledger</div>
+        <div className="mobile-topbar-left">
+          <button className="hamburger-btn" onClick={() => setDrawerOpen(true)} aria-label="Open menu">
+            <Menu size={20} strokeWidth={2} />
+          </button>
+          <div className="brand">
+            <div className="logo">L</div>
+            <div className="name">Ledger</div>
+          </div>
         </div>
-        <button className="logout-btn" onClick={() => supabase.auth.signOut()}>Log out</button>
+        <button className="logout-icon-btn" onClick={() => supabase.auth.signOut()} aria-label="Log out">
+          <LogOut size={18} strokeWidth={2} />
+        </button>
       </header>
+
+      <div className={`mobile-drawer-overlay ${drawerOpen ? 'open' : ''}`} onClick={() => setDrawerOpen(false)}></div>
+
+      <div className={`mobile-drawer ${drawerOpen ? 'open' : ''}`}>
+        <div className="drawer-header">
+          <div className="brand">
+            <div className="logo">L</div>
+            <div className="name">Ledger</div>
+          </div>
+          <button className="drawer-close" onClick={() => setDrawerOpen(false)} aria-label="Close menu">
+            <X size={18} strokeWidth={2} />
+          </button>
+        </div>
+
+        <nav className="sidebar-nav">
+          {TABS.map(t => {
+            const TabIcon = TAB_ICONS[t.id]
+            return (
+              <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => goToTab(t.id)}>
+                <span className="nav-icon"><TabIcon size={16} strokeWidth={2} /></span>
+                <span>{t.label}</span>
+              </button>
+            )
+          })}
+        </nav>
+
+        <div className="sidebar-account">
+          <div className="account-info">
+            <div className="avatar">{userInitial}</div>
+            <div className="account-text">
+              <div className="account-email" title={userEmail}>{userEmail}</div>
+              <div className="account-sub">Signed in</div>
+            </div>
+          </div>
+          <button className="logout-btn" onClick={() => supabase.auth.signOut()}>
+            <LogOut size={14} strokeWidth={2} /> Log out
+          </button>
+        </div>
+      </div>
 
       <main className="main-content">
         {tab === 'overview' && (
@@ -1188,18 +1221,6 @@ export default function Dashboard({ session }) {
 
         <footer>Ledger — your data, saved to your account, visible only to you.</footer>
       </main>
-
-      <nav className="mobile-tabs">
-        {TABS.map(t => {
-          const TabIcon = TAB_ICONS[t.id]
-          return (
-            <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>
-              <TabIcon size={17} strokeWidth={2} />
-              <span>{t.label}</span>
-            </button>
-          )
-        })}
-      </nav>
     </div>
   )
 }
