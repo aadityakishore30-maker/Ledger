@@ -32,7 +32,7 @@ input, select{ font-family:'Inter',sans-serif; }
 
 .app-shell{ display:flex; min-height:100vh; width:100%; background:var(--bg); }
 
-/* ---------- Sidebar (desktop) — unchanged ---------- */
+/* ---------- Sidebar (desktop) ---------- */
 .sidebar{
   width:var(--sidebar-w); flex-shrink:0; background:var(--surface);
   border-right:1px solid var(--border); display:flex; flex-direction:column;
@@ -72,7 +72,7 @@ input, select{ font-family:'Inter',sans-serif; }
 }
 .sidebar-account .logout-btn:hover{ color:var(--warn); border-color:var(--warn-soft); background:var(--warn-soft); }
 
-/* ---------- Mobile top bar (hidden on desktop) ---------- */
+/* ---------- Mobile top bar ---------- */
 .mobile-topbar{
   display:none; align-items:center; justify-content:space-between; padding:14px 16px;
   background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10;
@@ -105,7 +105,7 @@ input, select{ font-family:'Inter',sans-serif; }
   background:var(--surface); z-index:50;
   transform:translateX(-100%); transition:transform .25s ease;
   box-shadow:8px 0 30px rgba(0,0,0,0.15);
-  overflow:hidden; /* the inner nav scrolls, the drawer shell itself doesn't */
+  overflow:hidden;
 }
 .mobile-drawer.open{ transform:translateX(0); }
 
@@ -116,7 +116,6 @@ input, select{ font-family:'Inter',sans-serif; }
 .drawer-close{ border:none; background:none; color:var(--muted); padding:6px; border-radius:8px; display:flex; }
 .drawer-close:hover{ background:var(--surface-alt); color:var(--ink); }
 
-/* Let the nav list scroll independently if there are more tabs than fit the screen height */
 .mobile-drawer .sidebar-nav{
   overflow-y:auto;
   min-height:0;
@@ -134,7 +133,7 @@ input, select{ font-family:'Inter',sans-serif; }
 .balance-card .lbl{ font-size:12.5px; color:var(--muted); font-weight:500; }
 .balance-card .amt{ font-size:40px; font-weight:700; margin-top:6px; letter-spacing:-0.5px; color:var(--ink); font-variant-numeric: tabular-nums; }
 .balance-card .amt .rs{ color:var(--muted-soft); font-weight:600; font-size:26px; margin-right:2px;}
-.balance-row{ display:flex; gap:22px; margin-top:16px; }
+.balance-row{ display:flex; gap:22px; margin-top:16px; flex-wrap:wrap; }
 .balance-row .mini .k{ font-size:11.5px; color:var(--muted); }
 .balance-row .mini .v{ font-size:15px; font-weight:600; margin-top:4px; font-variant-numeric: tabular-nums; }
 .balance-row .mini .v.in{ color:var(--primary-dark); }
@@ -146,13 +145,13 @@ input, select{ font-family:'Inter',sans-serif; }
 .reserve-card p{ font-size:12.5px; color:#8A6C2E; line-height:1.6; margin:0; }
 
 .section{ width:100%; margin-top:32px; padding:0 var(--pad); }
-.section-head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px; }
+.section-head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:6px; }
 .section-head h2{ font-size:17px; font-weight:600; color:var(--ink); }
 .section-head .hint{ font-size:12.5px; color:var(--muted); }
 
 .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; }
 
-/* ---------- Forms: consistent vertical rhythm ---------- */
+/* ---------- Forms ---------- */
 .form-card h3{ font-size:15px; font-weight:600; color:var(--ink); margin:0 0 22px; }
 
 .form-card label{
@@ -179,7 +178,8 @@ input, select{ font-family:'Inter',sans-serif; }
 .check-row input{ width:auto; margin:0; accent-color:var(--primary); }
 .check-row label{ margin:0; font-size:13px; color:var(--ink); font-weight:500; }
 
-.form-card form > input, .form-card form > select{ margin-top:0; }
+.form-card form > input, .form-card form > select, .form-card form > .radio-group, .form-card form > .type-toggle{ margin-top:0; }
+.form-card form > label + .radio-group, .form-card form > label + .type-toggle{ margin-top:0; }
 
 .submit-btn{
   width:100%; background:var(--primary); color:#fff; border:none;
@@ -199,7 +199,7 @@ input, select{ font-family:'Inter',sans-serif; }
 .icon-dot.in{ background:var(--primary-soft); color:var(--primary-dark); }
 .icon-dot.out{ background:var(--warn-soft); color:var(--warn); }
 .icon-dot svg{ display:block; }
-.list-row .desc{ font-size:13.5px; font-weight:500; color:var(--ink); display:flex; align-items:center; gap:6px; line-height:1.4; }
+.list-row .desc{ font-size:13.5px; font-weight:500; color:var(--ink); display:flex; align-items:center; gap:6px; flex-wrap:wrap; line-height:1.4; }
 .list-row .meta{ font-size:11.5px; color:var(--muted); margin-top:3px; }
 .list-row .amt{ font-size:14px; font-weight:600; white-space:nowrap; font-variant-numeric: tabular-nums; }
 .list-row .amt.in{ color:var(--primary-dark); }
@@ -207,9 +207,10 @@ input, select{ font-family:'Inter',sans-serif; }
 .row-actions{ display:flex; align-items:center; gap:6px; flex-shrink:0; }
 .del-btn{ border:none; background:none; color:var(--muted-soft); display:flex; align-items:center; padding:6px; border-radius:6px; }
 .del-btn:hover{ color:var(--warn); background:var(--warn-soft); }
-.badge{ font-size:10px; font-weight:600; padding:2px 7px; border-radius:999px; text-transform:uppercase; letter-spacing:.3px; }
+.badge{ font-size:10px; font-weight:600; padding:2px 7px; border-radius:999px; text-transform:uppercase; letter-spacing:.3px; white-space:nowrap; }
 .badge.auto{ background:var(--accent-soft); color:#8A6C2E; }
 .badge.paused{ background:var(--surface-alt); color:var(--muted); }
+.badge.source{ background:#E4EAF3; color:#3D5A80; }
 
 .empty{ padding:40px 24px; text-align:center; color:var(--muted); font-size:13px; }
 .chart-box{ position:relative; height:220px; padding:20px 24px 10px; }
@@ -217,6 +218,7 @@ select.month-filter{ padding:9px 12px; border:1px solid var(--border); border-ra
 
 footer{ width:100%; margin-top:44px; padding:20px var(--pad) 50px; border-top:1px solid var(--border); font-size:11.5px; color:var(--muted-soft); text-align:center; }
 
+/* ---------- Tablet / mobile ---------- */
 @media (max-width:820px){
   .app-shell{ flex-direction:column; }
   .sidebar{ display:none; }
@@ -226,10 +228,32 @@ footer{ width:100%; margin-top:44px; padding:20px var(--pad) 50px; border-top:1p
   .hero{ grid-template-columns:1fr; }
   .grid-2{ grid-template-columns:1fr; }
 }
-
-/* Extra headroom check for short mobile viewports: drawer content scrolls instead of clipping */
 @media (max-width:820px) and (max-height:640px){
   .mobile-drawer .sidebar-nav{ padding-top:10px; padding-bottom:10px; }
+}
+
+/* ---------- Small phones: pixel-level tightening ---------- */
+@media (max-width:480px){
+  :root{ --pad: 16px; --gap: 16px; }
+  .card{ padding:18px; border-radius:14px; }
+  .balance-card .amt{ font-size:30px; }
+  .balance-card .amt .rs{ font-size:20px; }
+  .ef-hero .amt{ font-size:26px; }
+  .safe-spend-card .amt{ font-size:26px; }
+  .reserve-card .amt{ font-size:22px; }
+  .balance-row{ gap:16px; }
+  .section-head h2{ font-size:15.5px; }
+  .list-row{ padding:12px 18px; }
+  .form-row{ grid-template-columns:1fr; gap:0; }
+  .form-row > div{ margin-top:var(--gap); }
+  .form-row > div:first-child{ margin-top:0; }
+  .radio-group{ flex-wrap:wrap; }
+  .radio-option{ flex:1 1 auto; min-width:80px; font-size:11.5px; padding:8px 6px; }
+  .networth-item{ padding:12px 14px; }
+  .networth-item .v{ font-size:15px; }
+  .chart-box{ padding:16px 16px 6px; height:190px; }
+  .donut-legend{ padding:14px 16px; }
+  .month-detail .list-row{ padding-left:36px; }
 }
 
 /* ---------- History tab ---------- */
@@ -265,7 +289,7 @@ footer{ width:100%; margin-top:44px; padding:20px var(--pad) 50px; border-top:1p
 .upcoming-row{ opacity:0.85; }
 .upcoming-row .icon-dot{ background:#E4EAF3; color:#3D5A80; }
 
-/* ---------- Day mode picker ---------- */
+/* ---------- Day mode / source picker (shared 3-option style) ---------- */
 .radio-group{ display:flex; gap:8px; }
 .radio-option{
   flex:1; border:1px solid var(--border); border-radius:9px; padding:9px 8px;
@@ -287,13 +311,13 @@ footer{ width:100%; margin-top:44px; padding:20px var(--pad) 50px; border-top:1p
 .progress-caption{ font-size:12px; color:var(--muted); font-variant-numeric: tabular-nums; }
 .progress-caption b{ color:var(--primary-dark); }
 
-.target-editor{ display:flex; align-items:center; gap:10px; margin-top:16px; padding-top:16px; border-top:1px solid #D3E2DA; }
+.target-editor{ display:flex; align-items:center; gap:10px; margin-top:16px; padding-top:16px; border-top:1px solid #D3E2DA; flex-wrap:wrap; }
 .target-editor label{ margin:0; font-size:12.5px; color:var(--muted); font-weight:500; white-space:nowrap; }
 .target-editor input{ width:70px; padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:#fff; }
 .target-editor span{ font-size:12.5px; color:var(--muted); }
 
 .ef-widget{ background:var(--primary-soft); border:1px solid #D3E2DA; border-radius:12px; padding:16px 18px; margin-top:16px; }
-.ef-widget-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
+.ef-widget-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; flex-wrap:wrap; gap:4px; }
 .ef-widget-top .lbl{ font-size:12px; font-weight:600; color:var(--primary-dark); text-transform:uppercase; letter-spacing:.4px; }
 .ef-widget-top .months{ font-size:13px; font-weight:700; color:var(--primary-dark); }
 
@@ -310,7 +334,7 @@ footer{ width:100%; margin-top:44px; padding:20px var(--pad) 50px; border-top:1p
 /* ---------- Budgets & Investments ---------- */
 .budget-row{ padding:14px 24px; border-bottom:1px solid var(--border); }
 .budget-row:last-child{ border-bottom:none; }
-.budget-row-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
+.budget-row-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; flex-wrap:wrap; gap:4px; }
 .budget-cat{ font-size:13.5px; font-weight:600; color:var(--ink); display:flex; align-items:center; gap:8px; }
 .budget-nums{ font-size:12px; color:var(--muted); font-variant-numeric: tabular-nums; }
 .budget-nums b{ color:var(--ink); }
@@ -327,16 +351,17 @@ footer{ width:100%; margin-top:44px; padding:20px var(--pad) 50px; border-top:1p
 .safe-spend-card p{ font-size:12.5px; color:var(--muted); line-height:1.5; margin:0; }
 
 .donut-legend{ display:flex; flex-direction:column; gap:9px; padding:18px 24px; }
-.donut-legend-row{ display:flex; align-items:center; justify-content:space-between; font-size:12.5px; }
-.donut-legend-left{ display:flex; align-items:center; gap:8px; color:var(--ink); }
+.donut-legend-row{ display:flex; align-items:center; justify-content:space-between; font-size:12.5px; gap:8px; }
+.donut-legend-left{ display:flex; align-items:center; gap:8px; color:var(--ink); min-width:0; }
 .donut-swatch{ width:9px; height:9px; border-radius:2px; flex-shrink:0; }
-.donut-legend-row .val{ color:var(--muted); font-variant-numeric: tabular-nums; }
+.donut-legend-row .val{ color:var(--muted); font-variant-numeric: tabular-nums; flex-shrink:0; }
 
-.networth-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:16px; }
-.networth-item{ background:var(--bg); border-radius:10px; padding:14px 16px; }
+/* Always 2 columns, at every screen size, so numbers never get cramped by
+   a hardcoded 3- or 4-column layout on a narrow phone. */
+.networth-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin-top:16px; }
+.networth-item{ background:var(--bg); border-radius:10px; padding:14px 16px; min-width:0; }
 .networth-item .k{ font-size:11px; color:var(--muted); font-weight:500; }
-.networth-item .v{ font-size:17px; font-weight:700; margin-top:5px; color:var(--ink); font-variant-numeric: tabular-nums; }
-@media (max-width:820px){ .networth-grid{ grid-template-columns:1fr 1fr; } }
+.networth-item .v{ font-size:17px; font-weight:700; margin-top:5px; color:var(--ink); font-variant-numeric: tabular-nums; overflow:hidden; text-overflow:ellipsis; }
 
 .balance-note{ font-size:11.5px; color:var(--muted); margin-top:12px; line-height:1.5; }
 .balance-note.lent-note{ color:var(--primary-dark); font-weight:600; }

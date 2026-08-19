@@ -23,6 +23,9 @@ const CATEGORY_COLORS = {
 }
 const TAB_ICONS = { overview: LayoutGrid, salary: Wallet, expenses: Receipt, recurring: Repeat, budgets: Target, emergency: Shield, investments: TrendingUp, savings: PiggyBank, lend: HandCoins, history: History }
 
+const EF_SOURCE_LABELS = { new: 'New', savings: 'Savings', income: 'Income' }
+const SAVINGS_SOURCE_LABELS = { new: 'New', ef: 'Emergency Fund', income: 'Income' }
+
 function CategoryIcon({ category, size = 16 }) {
   const Icon = CATEGORY_ICONS[category] || Sparkles
   return <Icon size={size} strokeWidth={2} />
@@ -40,6 +43,19 @@ function dayModeLabel(rule) {
   if (rule.day_mode === 'first') return 'First day'
   if (rule.day_mode === 'last') return 'Last day'
   return `Day ${rule.day_of_month}`
+}
+
+function SourcePicker({ options, value, onChange }) {
+  return (
+    <div className="radio-group">
+      {options.map(o => (
+        <label key={o.id} className={`radio-option ${value === o.id ? 'active' : ''}`}>
+          <input type="radio" checked={value === o.id} onChange={() => onChange(o.id)} />
+          {o.label}
+        </label>
+      ))}
+    </div>
+  )
 }
 
 export default function Dashboard({ session }) {
@@ -81,6 +97,7 @@ export default function Dashboard({ session }) {
   const [efAmount, setEfAmount] = useState('')
   const [efDate, setEfDate] = useState(new Date().toISOString().slice(0, 10))
   const [efType, setEfType] = useState('contribution')
+  const [efSource, setEfSource] = useState('new')
   const [efNote, setEfNote] = useState('')
 
   const [budgetCategory, setBudgetCategory] = useState('Groceries')
@@ -95,6 +112,8 @@ export default function Dashboard({ session }) {
 
   const [savingsAmount, setSavingsAmount] = useState('')
   const [savingsDate, setSavingsDate] = useState(new Date().toISOString().slice(0, 10))
+  const [savingsType, setSavingsType] = useState('in')
+  const [savingsSource, setSavingsSource] = useState('new')
   const [savingsNote, setSavingsNote] = useState('')
 
   const [lendBorrower, setLendBorrower] = useState('')
@@ -110,7 +129,6 @@ export default function Dashboard({ session }) {
   useEffect(() => { loadAll() }, [])
   useEffect(() => { if (tab === 'overview') { drawChart(); drawDonut() } }, [tab, salaries, expenses])
 
-  // Lock background scroll while the mobile drawer is open
   useEffect(() => {
     document.body.style.overflow = drawerOpen ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
@@ -295,9 +313,10 @@ export default function Dashboard({ session }) {
     e.preventDefault()
     if (!efAmount) return
     await supabase.from('emergency_fund_entries').insert({
-      user_id: userId, amount: Number(efAmount), date: efDate, type: efType, note: efNote
+      user_id: userId, amount: Number(efAmount), date: efDate, type: efType,
+      source: efType === 'contribution' ? efSource : 'spent', note: efNote
     })
-    setEfAmount(''); setEfNote('')
+    setEfAmount(''); setEfNote(''); setEfSource('new')
     loadAll()
   }
 
@@ -342,9 +361,10 @@ export default function Dashboard({ session }) {
     e.preventDefault()
     if (!savingsAmount) return
     await supabase.from('savings_entries').insert({
-      user_id: userId, amount: Number(savingsAmount), date: savingsDate, note: savingsNote
+      user_id: userId, amount: Number(savingsAmount), date: savingsDate, type: savingsType,
+      source: savingsType === 'in' ? savingsSource : 'spent', note: savingsNote
     })
-    setSavingsAmount(''); setSavingsNote('')
+    setSavingsAmount(''); setSavingsNote(''); setSavingsSource('new')
     loadAll()
   }
 
@@ -456,14 +476,6 @@ export default function Dashboard({ session }) {
     ? recentMonthVals.reduce((a, b) => a + b, 0) / recentMonthVals.length
     : monthOut
 
-  const efContributions = efEntries.filter(e => e.type === 'contribution').reduce((s, x) => s + Number(x.amount), 0)
-  const efWithdrawals = efEntries.filter(e => e.type === 'withdrawal').reduce((s, x) => s + Number(x.amount), 0)
-  const efBalance = efContributions - efWithdrawals
-  const efTargetAmount = avgMonthlyExpense * efTargetMonths
-  const efMonthsCovered = avgMonthlyExpense > 0 ? efBalance / avgMonthlyExpense : 0
-  const efProgressPct = efTargetAmount > 0 ? Math.min(100, (efBalance / efTargetAmount) * 100) : 0
-  const sortedEf = [...efEntries].sort((a, b) => b.date.localeCompare(a.date))
-
   function categorySpent(cat) {
     return expenses.filter(e => e.category === cat && monthKey(e.date) === curMonth && e.date <= today).reduce((s, x) => s + Number(x.amount), 0)
   }
@@ -472,33 +484,45 @@ export default function Dashboard({ session }) {
   const invContrib = investments.filter(i => i.type === 'contribution').reduce((s, x) => s + Number(x.amount), 0)
   const invWithdraw = investments.filter(i => i.type === 'withdrawal').reduce((s, x) => s + Number(x.amount), 0)
   const investmentsTotal = invContrib - invWithdraw
+
+  // ---------- Emergency fund & Savings, with cross-bucket transfers ----------
+  const efContributions = efEntries.filter(e => e.type === 'contribution').reduce((s, x) => s + Number(x.amount), 0)
+  const efWithdrawals = efEntries.filter(e => e.type === 'withdrawal').reduce((s, x) => s + Number(x.amount), 0)
+  const efBalanceRaw = efContributions - efWithdrawals
+
+  const savingsRaw = savingsEntries.reduce((sum, e) => sum + ((e.type || 'in') === 'out' ? -Number(e.amount) : Number(e.amount)), 0)
+
+  // A contribution "from savings" or "from income" is recorded only in its destination
+  // table, so the source bucket needs this adjustment subtracted to reflect what's
+  // truly left there. "New" money doesn't touch any other bucket.
+  const efContribFromSavings = efEntries.filter(e => e.type === 'contribution' && e.source === 'savings').reduce((s, x) => s + Number(x.amount), 0)
+  const efContribFromIncome = efEntries.filter(e => e.type === 'contribution' && e.source === 'income').reduce((s, x) => s + Number(x.amount), 0)
+  const savingsInFromEf = savingsEntries.filter(s => (s.type || 'in') === 'in' && s.source === 'ef').reduce((s, x) => s + Number(x.amount), 0)
+  const savingsInFromIncome = savingsEntries.filter(s => (s.type || 'in') === 'in' && s.source === 'income').reduce((s, x) => s + Number(x.amount), 0)
+
+  const efBalance = efBalanceRaw - savingsInFromEf
+  const currentSavings = savingsRaw - efContribFromSavings
+
+  const efTargetAmount = avgMonthlyExpense * efTargetMonths
+  const efMonthsCovered = avgMonthlyExpense > 0 ? efBalance / avgMonthlyExpense : 0
+  const efProgressPct = efTargetAmount > 0 ? Math.min(100, (efBalance / efTargetAmount) * 100) : 0
+  const sortedEf = [...efEntries].sort((a, b) => b.date.localeCompare(a.date))
   const sortedSavings = [...savingsEntries].sort((a, b) => b.date.localeCompare(a.date))
-  const currentSavings = savingsEntries.reduce((sum, entry) => sum + Number(entry.amount), 0)
 
   const dueRecurringExpenses = upcomingRecurring.filter(e => e.date <= today)
-
   const dueExpenses = [
     ...expenses.filter(e => e.date <= today),
     ...dueRecurringExpenses
   ]
-
   const dueMonths = new Set(dueExpenses.map(e => monthKey(e.date)))
   dueMonths.add(curMonth)
 
   let incomeCoverageShortfall = 0
-
   for (const mk of dueMonths) {
-    const monthIncome = salaries
-      .filter(s => s.for_month === mk)
-      .reduce((sum, s) => sum + Number(s.amount), 0)
-
-    const monthExpenses = dueExpenses
-      .filter(e => monthKey(e.date) === mk)
-      .reduce((sum, e) => sum + Number(e.amount), 0)
-
-    incomeCoverageShortfall += Math.max(0, monthExpenses - monthIncome)
+    const monthIncome = salaries.filter(s => s.for_month === mk).reduce((sum, s) => sum + Number(s.amount), 0)
+    const monthExpensesDue = dueExpenses.filter(e => monthKey(e.date) === mk).reduce((sum, e) => sum + Number(e.amount), 0)
+    incomeCoverageShortfall += Math.max(0, monthExpensesDue - monthIncome)
   }
-
   const availableSavings = Math.max(0, currentSavings - incomeCoverageShortfall)
 
   const lentOutstanding = lendEntries.filter(l => l.status === 'outstanding').reduce((s, x) => s + Number(x.amount), 0)
@@ -507,7 +531,9 @@ export default function Dashboard({ session }) {
     return b.date.localeCompare(a.date)
   })
 
-  const totalBalance = trueBalance + currentSavings - lentOutstanding
+  // Income/balance-sourced transfers into EF or Savings leave the checking pool,
+  // so they're subtracted here even though currentSavings already reflects the add.
+  const totalBalance = trueBalance + currentSavings - lentOutstanding - efContribFromIncome - savingsInFromIncome
   const netWorth = totalBalance + investmentsTotal + efBalance + lentOutstanding
   const sortedInvestments = [...investments].sort((a, b) => b.date.localeCompare(a.date))
   const invByCategory = {}
@@ -538,16 +564,7 @@ export default function Dashboard({ session }) {
       { id: 'first', label: 'First day' },
       { id: 'last', label: 'Last day' }
     ]
-    return (
-      <div className="radio-group">
-        {options.map(o => (
-          <label key={o.id} className={`radio-option ${value === o.id ? 'active' : ''}`}>
-            <input type="radio" checked={value === o.id} onChange={() => onChange(o.id)} />
-            {o.label}
-          </label>
-        ))}
-      </div>
-    )
+    return <SourcePicker options={options} value={value} onChange={onChange} />
   }
 
   function budgetState(pct) {
@@ -689,7 +706,7 @@ export default function Dashboard({ session }) {
                 <div className="card balance-card">
                   <div className="lbl">Net worth</div>
                   <div className="amt">{fmt(netWorth)}</div>
-                  <div className="networth-grid" style={{ marginTop: 14, gridTemplateColumns: 'repeat(4,1fr)' }}>
+                  <div className="networth-grid">
                     <div className="networth-item"><div className="k">Bank</div><div className="v">{fmt(totalBalance)}</div></div>
                     <div className="networth-item"><div className="k">Lent out</div><div className="v">{fmt(lentOutstanding)}</div></div>
                     <div className="networth-item"><div className="k">Investments</div><div className="v">{fmt(investmentsTotal)}</div></div>
@@ -1042,6 +1059,16 @@ export default function Dashboard({ session }) {
                         Withdrawal
                       </label>
                     </div>
+                    {efType === 'contribution' && (
+                      <>
+                        <label>Moving this from</label>
+                        <SourcePicker
+                          options={[{ id: 'new', label: 'New' }, { id: 'savings', label: 'Savings' }, { id: 'income', label: 'Income' }]}
+                          value={efSource}
+                          onChange={setEfSource}
+                        />
+                      </>
+                    )}
                     <label>Amount</label>
                     <input type="number" min="1" value={efAmount} onChange={e => setEfAmount(e.target.value)} required />
                     <label>Date</label>
@@ -1049,19 +1076,26 @@ export default function Dashboard({ session }) {
                     <label>Note (optional)</label>
                     <input type="text" placeholder="e.g. Moved from this month's savings" value={efNote} onChange={e => setEfNote(e.target.value)} />
                     <button type="submit" className="submit-btn">Add entry</button>
-                    <p className="form-note">This is tracked separately from your expenses, setting money aside here doesn't count as spending.</p>
+                    <p className="form-note">
+                      {efType === 'contribution' && efSource !== 'new'
+                        ? `This will also reduce your ${efSource === 'savings' ? 'Savings' : 'Total balance'} by the same amount, since it's the same money moving, not new money.`
+                        : "This is tracked separately from your expenses, setting money aside here doesn't count as spending."}
+                    </p>
                   </form>
                 </div>
                 <div className="card list-card" style={{ alignSelf: 'start' }}>
                   {sortedEf.length === 0 && <div className="empty">No entries yet. Log your first contribution to start building your buffer.</div>}
                   {sortedEf.map(e => (
                     <div className="list-row" key={e.id}>
-                      <div className="left">
-                        <div className={`icon-dot ${e.type === 'contribution' ? 'in' : 'out'}`}><Shield size={16} strokeWidth={2} /></div>
-                        <div>
-                          <div className="desc">{e.note || (e.type === 'contribution' ? 'Contribution' : 'Withdrawal')}</div>
-                          <div className="meta">{e.date}</div>
+                      <div className={`icon-dot ${e.type === 'contribution' ? 'in' : 'out'}`}><Shield size={16} strokeWidth={2} /></div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="desc">
+                          {e.note || (e.type === 'contribution' ? 'Contribution' : 'Withdrawal')}
+                          {e.type === 'contribution' && e.source && e.source !== 'new' && (
+                            <span className="badge source">from {EF_SOURCE_LABELS[e.source] || e.source}</span>
+                          )}
                         </div>
+                        <div className="meta">{e.date}</div>
                       </div>
                       <div className="row-actions">
                         <div className={`amt ${e.type === 'contribution' ? 'in' : 'out'}`}>{e.type === 'contribution' ? '+' : '−'} {fmt(e.amount)}</div>
@@ -1081,7 +1115,7 @@ export default function Dashboard({ session }) {
               <div className="card balance-card">
                 <div className="lbl">Net worth</div>
                 <div className="amt">{fmt(netWorth)}</div>
-                <div className="networth-grid" style={{ marginTop: 14, gridTemplateColumns: 'repeat(3,1fr)' }}>
+                <div className="networth-grid">
                   <div className="networth-item"><div className="k">Bank</div><div className="v">{fmt(totalBalance)}</div></div>
                   <div className="networth-item"><div className="k">Investments</div><div className="v">{fmt(investmentsTotal)}</div></div>
                   <div className="networth-item"><div className="k">Emergency fund</div><div className="v">{fmt(efBalance)}</div></div>
@@ -1177,36 +1211,67 @@ export default function Dashboard({ session }) {
             <div className="section">
               <div className="grid-2">
                 <div className="card form-card">
-                  <h3>Add savings</h3>
+                  <h3>Add savings entry</h3>
                   <form onSubmit={addSavings}>
-                    <label>Current amount</label>
-                    <input type="number" min="0" placeholder="e.g. 50000" value={savingsAmount} onChange={e => setSavingsAmount(e.target.value)} required />
+                    <label>Type</label>
+                    <div className="type-toggle">
+                      <label className={savingsType === 'in' ? 'active-in' : ''}>
+                        <input type="radio" checked={savingsType === 'in'} onChange={() => setSavingsType('in')} />
+                        Add
+                      </label>
+                      <label className={savingsType === 'out' ? 'active-out' : ''}>
+                        <input type="radio" checked={savingsType === 'out'} onChange={() => setSavingsType('out')} />
+                        Withdraw
+                      </label>
+                    </div>
+                    {savingsType === 'in' && (
+                      <>
+                        <label>Moving this from</label>
+                        <SourcePicker
+                          options={[{ id: 'new', label: 'New' }, { id: 'ef', label: 'Emergency Fund' }, { id: 'income', label: 'Income' }]}
+                          value={savingsSource}
+                          onChange={setSavingsSource}
+                        />
+                      </>
+                    )}
+                    <label>Amount</label>
+                    <input type="number" min="1" placeholder="e.g. 50000" value={savingsAmount} onChange={e => setSavingsAmount(e.target.value)} required />
                     <label>Date</label>
                     <input type="date" value={savingsDate} onChange={e => setSavingsDate(e.target.value)} required />
                     <label>Note (optional)</label>
                     <input type="text" placeholder="e.g. Savings as of August" value={savingsNote} onChange={e => setSavingsNote(e.target.value)} />
-                    <button type="submit" className="submit-btn">Add savings</button>
-                    <p className="form-note">Each entry is added to your total savings. Use a new entry when you add more money to savings.</p>
+                    <button type="submit" className="submit-btn">Add entry</button>
+                    <p className="form-note">
+                      {savingsType === 'in' && savingsSource !== 'new'
+                        ? `This will also reduce your ${savingsSource === 'ef' ? 'Emergency Fund' : 'Total balance'} by the same amount, since it's the same money moving, not new money.`
+                        : 'Each entry updates your total savings. Use a new entry whenever the amount changes.'}
+                    </p>
                   </form>
                 </div>
 
                 <div className="card list-card" style={{ alignSelf: 'start' }}>
                   {sortedSavings.length === 0 && <div className="empty">No savings recorded yet. Add your current savings amount to get started.</div>}
-                  {sortedSavings.map(s => (
-                    <div className="list-row" key={s.id}>
-                      <div className="left">
-                        <div className="icon-dot in"><PiggyBank size={16} strokeWidth={2} /></div>
-                        <div>
-                          <div className="desc">{s.note || 'Savings balance'}</div>
+                  {sortedSavings.map(s => {
+                    const sType = s.type || 'in'
+                    return (
+                      <div className="list-row" key={s.id}>
+                        <div className={`icon-dot ${sType === 'in' ? 'in' : 'out'}`}><PiggyBank size={16} strokeWidth={2} /></div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="desc">
+                            {s.note || 'Savings balance'}
+                            {sType === 'in' && s.source && s.source !== 'new' && (
+                              <span className="badge source">from {SAVINGS_SOURCE_LABELS[s.source] || s.source}</span>
+                            )}
+                          </div>
                           <div className="meta">{s.date}</div>
                         </div>
+                        <div className="row-actions">
+                          <div className={`amt ${sType === 'in' ? 'in' : 'out'}`}>{sType === 'in' ? '+' : '−'} {fmt(s.amount)}</div>
+                          <button className="del-btn" onClick={() => deleteSavings(s.id)}><X size={14} strokeWidth={2} /></button>
+                        </div>
                       </div>
-                      <div className="row-actions">
-                        <div className="amt in">{fmt(s.amount)}</div>
-                        <button className="del-btn" onClick={() => deleteSavings(s.id)}><X size={14} strokeWidth={2} /></button>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             </div>
