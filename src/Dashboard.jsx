@@ -353,10 +353,11 @@ export default function Dashboard({ session }) {
   async function addEfEntry(e) {
     e.preventDefault()
     if (!efAmount) return
-    await supabase.from('emergency_fund_entries').insert({
+    const { error } = await supabase.from('emergency_fund_entries').insert({
       user_id: userId, amount: Number(efAmount), date: efDate, type: efType,
       source: efType === 'contribution' ? efSource : 'spent', note: efNote
     })
+    if (error) { alert('Could not save: ' + error.message); return }
     setEfAmount(''); setEfNote(''); setEfSource('new')
     loadAll()
   }
@@ -401,10 +402,11 @@ export default function Dashboard({ session }) {
   async function addSavings(e) {
     e.preventDefault()
     if (!savingsAmount) return
-    await supabase.from('savings_entries').insert({
+    const { error } = await supabase.from('savings_entries').insert({
       user_id: userId, amount: Number(savingsAmount), date: savingsDate, type: savingsType,
       source: savingsType === 'in' ? savingsSource : 'spent', note: savingsNote
     })
+    if (error) { alert('Could not save: ' + error.message); return }
     setSavingsAmount(''); setSavingsNote(''); setSavingsSource('new')
     loadAll()
   }
@@ -533,9 +535,6 @@ export default function Dashboard({ session }) {
 
   const savingsRaw = savingsEntries.reduce((sum, e) => sum + ((e.type || 'in') === 'out' ? -Number(e.amount) : Number(e.amount)), 0)
 
-  // A contribution "from savings" or "from income" is recorded only in its destination
-  // table, so the source bucket needs this adjustment subtracted to reflect what's
-  // truly left there. "New" money doesn't touch any other bucket.
   const efContribFromSavings = efEntries.filter(e => e.type === 'contribution' && e.source === 'savings').reduce((s, x) => s + Number(x.amount), 0)
   const efContribFromIncome = efEntries.filter(e => e.type === 'contribution' && e.source === 'income').reduce((s, x) => s + Number(x.amount), 0)
   const savingsInFromEf = savingsEntries.filter(s => (s.type || 'in') === 'in' && s.source === 'ef').reduce((s, x) => s + Number(x.amount), 0)
@@ -572,8 +571,6 @@ export default function Dashboard({ session }) {
     return b.date.localeCompare(a.date)
   })
 
-  // Income/balance-sourced transfers into EF or Savings leave the checking pool,
-  // so they're subtracted here even though currentSavings already reflects the add.
   const totalBalance = trueBalance + currentSavings - lentOutstanding - efContribFromIncome - savingsInFromIncome
   const netWorth = totalBalance + investmentsTotal + efBalance + lentOutstanding
   const sortedInvestments = [...investments].sort((a, b) => b.date.localeCompare(a.date))
@@ -583,7 +580,6 @@ export default function Dashboard({ session }) {
     invByCategory[i.category] = (invByCategory[i.category] || 0) + sign * Number(i.amount)
   })
 
-  // ---------- "How's this calculated?" breakdowns ----------
   const savingsNetOfIncome = currentSavings - savingsInFromIncome
 
   const totalBalanceRows = [
